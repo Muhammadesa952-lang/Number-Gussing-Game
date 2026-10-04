@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Number Guessing Game</title>
+<style>
+  :root {
+    --bg: #14213d;
+    --panel: #1d2d50;
+    --ink: #f4f1de;
+    --muted: #a9b4cf;
+    --accent: #fca311;
+    --good: #6fcf97;
+    --bad: #ef7674;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: Georgia, "Times New Roman", serif;
+    padding: 16px;
+  }
+  main {
+    width: 100%;
+    max-width: 440px;
+    background: var(--panel);
+    border-radius: 14px;
+    padding: 28px 24px;
+  }
+  h1 { margin: 0 0 4px; font-size: 1.7rem; }
+  p.sub { margin: 0 0 20px; color: var(--muted); }
+  .tabs { display: flex; gap: 8px; margin-bottom: 22px; }
+  .tabs button {
+    flex: 1; padding: 10px; border-radius: 8px; border: 2px solid var(--muted);
+    background: transparent; color: var(--ink); font: inherit; cursor: pointer;
+  }
+  .tabs button.active { background: var(--accent); border-color: var(--accent); color: #14213d; font-weight: bold; }
+  .big { font-size: 3.4rem; text-align: center; margin: 12px 0; color: var(--accent); }
+  .msg { text-align: center; min-height: 3em; margin: 8px 0 16px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .row button, .restart, .go {
+    flex: 1; padding: 12px; border-radius: 8px; border: none; font: inherit;
+    cursor: pointer; background: var(--ink); color: #14213d;
+  }
+  .row button.low { background: var(--bad); }
+  .row button.high { background: #8ecae6; }
+  .row button.ok { background: var(--good); }
+  button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  input[type=number] {
+    flex: 2; padding: 12px; border-radius: 8px; border: 2px solid var(--muted);
+    background: transparent; color: var(--ink); font: inherit; font-size: 1.2rem;
+  }
+  .go { background: var(--accent); font-weight: bold; }
+  .restart { width: 100%; margin-top: 12px; background: transparent; color: var(--muted); border: 1px solid var(--muted); }
+  .meta { text-align: center; color: var(--muted); font-size: .95rem; margin-top: 12px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Number Guessing Game</h1>
+  <p class="sub">Pick a mode and play. Numbers are from 1 to 100.</p>
+
+  <div class="tabs">
+    <button id="tabThink" class="active">I think, you guess</button>
+    <button id="tabGuess">You think, I guess</button>
+  </div>
+
+  <!-- MODE 1: user thinks of a number, computer guesses -->
+  <section id="modeThink">
+    <p class="msg" id="thinkMsg">Think of a number between 1 and 100. Don't tell me. Ready?</p>
+    <div class="big" id="thinkGuess">?</div>
+    <div class="row" id="thinkStart">
+      <button class="ok" id="startBtn">Start</button>
+    </div>
+    <div class="row" id="thinkButtons" hidden>
+      <button class="low" id="tooLow">Higher</button>
+      <button class="ok" id="correct">Correct!</button>
+      <button class="high" id="tooHigh">Lower</button>
+    </div>
+    <p class="meta" id="thinkMeta"></p>
+    <button class="restart" id="thinkRestart" hidden>Play again</button>
+  </section>
+
+  <!-- MODE 2: computer thinks of a number, user guesses -->
+  <section id="modeGuess" hidden>
+    <p class="msg" id="guessMsg">I'm thinking of a number between 1 and 100. You have 5 guesses.</p>
+    <div class="row">
+      <input type="number" id="guessInput" min="1" max="100" placeholder="Your guess" aria-label="Your guess">
+      <button class="go" id="guessBtn">Guess</button>
+    </div>
+    <p class="meta" id="guessMeta">Attempts left: 5</p>
+    <button class="restart" id="guessRestart">New number</button>
+  </section>
+</main>
+
+<script>
+  const $ = id => document.getElementById(id);
+
+  // ---------- Tabs ----------
+  function showMode(mode) {
+    const think = mode === 'think';
+    $('modeThink').hidden = !think;
+    $('modeGuess').hidden = think;
+    $('tabThink').classList.toggle('active', think);
+    $('tabGuess').classList.toggle('active', !think);
+  }
+  $('tabThink').onclick = () => showMode('think');
+  $('tabGuess').onclick = () => showMode('guess');
+
+  // ---------- Mode 1: computer guesses ----------
+  let low, high, current, tries;
+
+  function resetThink() {
+    low = 1; high = 100; tries = 0;
+    $('thinkMsg').textContent = "Think of a number between 1 and 100. Don't tell me. Ready?";
+    $('thinkGuess').textContent = '?';
+    $('thinkStart').hidden = false;
+    $('thinkButtons').hidden = true;
+    $('thinkRestart').hidden = true;
+    $('thinkMeta').textContent = '';
+  }
+
+  function makeGuess() {
+    if (low > high) {
+      $('thinkMsg').textContent = "Something doesn't add up. One of your answers must have been wrong!";
+      $('thinkGuess').textContent = '!';
+      $('thinkButtons').hidden = true;
+      $('thinkRestart').hidden = false;
+      return;
+    }
+    current = Math.floor((low + high) / 2);
+    tries++;
+    $('thinkGuess').textContent = current;
+    $('thinkMsg').textContent = 'Is your number ' + current + '?';
+    $('thinkMeta').textContent = 'Guess #' + tries + ' (it is between ' + low + ' and ' + high + ')';
+  }
+
+  $('startBtn').onclick = () => {
+    $('thinkStart').hidden = true;
+    $('thinkButtons').hidden = false;
+    makeGuess();
+  };
+  $('tooLow').onclick = () => { low = current + 1; makeGuess(); };
+  $('tooHigh').onclick = () => { high = current - 1; makeGuess(); };
+  $('correct').onclick = () => {
+    $('thinkMsg').textContent = 'I got it in ' + tries + (tries === 1 ? ' guess!' : ' guesses!');
+    $('thinkButtons').hidden = true;
+    $('thinkRestart').hidden = false;
+  };
+  $('thinkRestart').onclick = resetThink;
+
+  // ---------- Mode 2: user guesses ----------
+  const MAX_ATTEMPTS = 5;
+  let secret, attempts, finished;
+
+  function resetGuess() {
+    secret = Math.floor(Math.random() * 100) + 1;
+    attempts = 0;
+    finished = false;
+    $('guessMsg').textContent = "I'm thinking of a number between 1 and 100. You have 5 guesses.";
+    $('guessMeta').textContent = 'Attempts left: ' + MAX_ATTEMPTS;
+    $('guessInput').value = '';
+    $('guessInput').disabled = false;
+    $('guessBtn').disabled = false;
+    $('guessInput').focus();
+  }
+
+  function checkGuess() {
+    if (finished) return;
+    const n = parseInt($('guessInput').value, 10);
+    if (isNaN(n) || n < 1 || n > 100) {
+      $('guessMsg').textContent = 'Enter a whole number from 1 to 100.';
+      return;
+    }
+    attempts++;
+    const left = MAX_ATTEMPTS - attempts;
+    $('guessMeta').textContent = 'Attempts left: ' + left;
+    if (n === secret) {
+      finished = true;
+      $('guessMsg').textContent = 'Yes! It was ' + secret + '. You got it in ' + attempts + (attempts === 1 ? ' try.' : ' tries.');
+    } else if (left === 0) {
+      finished = true;
+      $('guessMsg').textContent = 'Out of attempts! The number was ' + secret + '. Press "New number" to try again.';
+    } else if (n < secret) {
+      $('guessMsg').textContent = n + ' is too low. Try higher.';
+    } else {
+      $('guessMsg').textContent = n + ' is too high. Try lower.';
+    }
+    if (finished) {
+      $('guessInput').disabled = true;
+      $('guessBtn').disabled = true;
+      $('guessInput').value = '';
+      return;
+    }
+    $('guessInput').value = '';
+    $('guessInput').focus();
+  }
+
+  $('guessBtn').onclick = checkGuess;
+  $('guessInput').addEventListener('keydown', e => { if (e.key === 'Enter') checkGuess(); });
+  $('guessRestart').onclick = resetGuess;
+
+  resetThink();
+  resetGuess();
+</script>
+</body>
+</html>
